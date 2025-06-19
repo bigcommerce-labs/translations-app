@@ -8,6 +8,7 @@ import Papa, { ParseError } from "papaparse";
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   FlexItem,
   Modal,
@@ -101,6 +102,7 @@ function TranslationsJobsContent() {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [selectedResourceType, setSelectedResourceType] = useState<"products" | "categories">("products");
+  const [includeDraftTranslations, setIncludeDraftTranslations] = useState(false);
 
   const {
     channels,
@@ -149,6 +151,7 @@ function TranslationsJobsContent() {
             resourceType: selectedResourceType,
             channelId: selectedChannel,
             locale: selectedLocale,
+            includeDraftTranslations: jobType === "export" ? includeDraftTranslations : false,
           }),
         }
       );
@@ -540,6 +543,7 @@ function TranslationsJobsContent() {
 
   const closeExportModal = () => {
     setShowExportModal(false);
+    setIncludeDraftTranslations(false);
   };
 
   return (
@@ -720,6 +724,15 @@ function TranslationsJobsContent() {
                   ]}
                   onChange={(value) => setSelectedResourceType(value as "products" | "categories")}
                   value={selectedResourceType}
+                />
+              </FlexItem>
+
+              <FlexItem marginBottom="medium">
+                <Checkbox
+                  label={t("exportModal.draftTranslations.label")}
+                  description={t("exportModal.draftTranslations.description")}
+                  checked={includeDraftTranslations}
+                  onChange={(event) => setIncludeDraftTranslations(event.target.checked)}
                 />
               </FlexItem>
               

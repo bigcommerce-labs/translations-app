@@ -121,9 +121,11 @@ export class MySQLClient implements DatabaseOperations {
   async createTranslationJob(data: {
     storeHash: string;
     jobType: 'import' | 'export';
+    resourceType?: 'products' | 'categories';
     channelId: number;
     locale: string;
     fileUrl?: string;
+    metadata?: any;
   }): Promise<TranslationJob> {
     const result = await this.db
       .insert(this.schema.translationJobs)

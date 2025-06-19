@@ -24,6 +24,8 @@ import {
   generateCategoryCSVHeaders,
   formatCategoryDataForCSV
 } from '@/lib/utils/category-translation-helpers';
+import { callTranslationsAPI, extractTranslatableKeys, getFieldsNeedingTranslation } from '@/lib/utils/translations-api';
+import type { TranslationJobMetadata } from '@/lib/db/clients/types';
 
 // CSV record type
 interface TranslationRecord {
@@ -230,7 +232,21 @@ async function parseCSV<T>(text: string): Promise<T[]> {
           reject(new Error('CSV file is empty'));
           return;
         }
-        resolve(results.data);
+        
+        // Filter out draft translation columns from each record
+        const filteredData = results.data.map((record: any) => {
+          const filtered: any = {};
+          if (record && typeof record === 'object') {
+            Object.keys(record).forEach(key => {
+              if (!key.includes('_DRAFT_AI_TRANSLATION')) {
+                filtered[key] = record[key];
+              }
+            });
+          }
+          return filtered;
+        });
+        
+        resolve(filteredData);
       },
       error: (error: Error) => {
         console.error('CSV parsing error:', error);
@@ -241,39 +257,36 @@ async function parseCSV<T>(text: string): Promise<T[]> {
 }
 
 // Helper function to stringify CSV using PapaParse
-function stringifyCSV(records: TranslationRecord[], defaultLocale: string, targetLocale: string): string {
-  const headers = [
-    'productId',
+function stringifyCSV(records: TranslationRecord[], defaultLocale: string, targetLocale: string, includeDraftColumns: boolean = false): string {
+  // Define field groups to build headers dynamically
+  const fieldGroups = [
     // Basic Information
-    `name_${defaultLocale}`,
-    `name_${targetLocale}`,
-    `description_${defaultLocale}`,
-    `description_${targetLocale}`,
-    // SEO Information
-    `pageTitle_${defaultLocale}`,
-    `pageTitle_${targetLocale}`,
-    `metaDescription_${defaultLocale}`,
-    `metaDescription_${targetLocale}`,
+    { fields: ['name', 'description'], section: 'Basic Information' },
+    // SEO Information  
+    { fields: ['pageTitle', 'metaDescription'], section: 'SEO Information' },
     // Storefront Details
-    `warranty_${defaultLocale}`,
-    `warranty_${targetLocale}`,
-    `availabilityDescription_${defaultLocale}`,
-    `availabilityDescription_${targetLocale}`,
-    `searchKeywords_${defaultLocale}`,
-    `searchKeywords_${targetLocale}`,
+    { fields: ['warranty', 'availabilityDescription', 'searchKeywords'], section: 'Storefront Details' },
     // Pre-order Settings
-    `preOrderMessage_${defaultLocale}`,
-    `preOrderMessage_${targetLocale}`,
-    // Options
-    `options_${defaultLocale}`,
-    `options_${targetLocale}`,
-    // Modifiers
-    `modifiers_${defaultLocale}`,
-    `modifiers_${targetLocale}`,
-    // Custom Fields
-    `customFields_${defaultLocale}`,
-    `customFields_${targetLocale}`
+    { fields: ['preOrderMessage'], section: 'Pre-order Settings' },
+    // Complex fields
+    { fields: ['options', 'modifiers', 'customFields'], section: 'Complex Fields' }
   ];
+
+  // Build headers with draft columns interleaved
+  const headers = ['productId'];
+  
+  fieldGroups.forEach(group => {
+    group.fields.forEach(field => {
+      // Add default locale column
+      headers.push(`${field}_${defaultLocale}`);
+      // Add target locale column  
+      headers.push(`${field}_${targetLocale}`);
+      // Add draft translation column right after if enabled
+      if (includeDraftColumns) {
+        headers.push(`${field}_${targetLocale}_DRAFT_AI_TRANSLATION`);
+      }
+    });
+  });
 
   const config: UnparseConfig = {
     quotes: true,
@@ -862,11 +875,106 @@ function generateUniqueExportFilename(
   return `exports/${storeHash}/${timestamp}-${randomBytes}-${descriptiveFilename}`;
 }
 
+// Helper function to generate draft translations for a product
+async function generateDraftTranslations(
+  productData: any, 
+  defaultLocale: string, 
+  targetLocale: string
+): Promise<Record<string, string>> {
+  try {
+    // Define the translatable fields we want to translate
+    const translatableFields = [
+      'name', 'description', 'pageTitle', 'metaDescription', 
+      'warranty', 'availabilityDescription', 'searchKeywords', 'preOrderMessage'
+    ];
+
+    // Build payload with only the fields that have content in the default locale
+    const payload: Record<string, any> = {};
+    const translateKeys: string[] = [];
+
+    translatableFields.forEach(field => {
+      const defaultValue = productData[`${field}_${defaultLocale}`];
+      const currentValue = productData[`${field}_${targetLocale}`];
+      
+      if (defaultValue && typeof defaultValue === 'string' && defaultValue.trim() && 
+          (!currentValue || !currentValue.trim())) {
+        payload[field] = defaultValue;
+        translateKeys.push(field);
+      }
+    });
+
+    // Handle complex fields (options, modifiers, customFields)
+    const complexFields = ['options', 'modifiers', 'customFields'];
+    complexFields.forEach(field => {
+      const defaultValue = productData[`${field}_${defaultLocale}`];
+      const currentValue = productData[`${field}_${targetLocale}`];
+      
+      if (defaultValue && defaultValue !== '[]' && defaultValue !== '' &&
+          (!currentValue || currentValue === '[]' || currentValue === '')) {
+        try {
+          const parsedDefault = JSON.parse(defaultValue);
+          if (Array.isArray(parsedDefault) && parsedDefault.length > 0) {
+            payload[field] = parsedDefault;
+            // Extract translatable keys from complex objects
+            const keys = extractTranslatableKeys(parsedDefault, ['name', 'displayName', 'label', 'value', 'fieldValue', 'defaultValue']);
+            translateKeys.push(...keys.map(key => `${field}.${key}`));
+          }
+        } catch (error) {
+          console.warn(`Failed to parse ${field} for translation:`, error);
+        }
+      }
+    });
+
+    if (Object.keys(payload).length === 0) {
+      // No content to translate
+      return {};
+    }
+
+    // Call the translations API
+    const response = await callTranslationsAPI({
+      target_language: targetLocale,
+      source_language: defaultLocale,
+      payload,
+      translate_keys: translateKeys.length > 0 ? translateKeys : undefined,
+    });
+
+    // Extract translated values and add them with draft suffix
+    const draftTranslations: Record<string, string> = {};
+    
+    translatableFields.forEach(field => {
+      if (response.translated_payload[field]) {
+        draftTranslations[`${field}_${targetLocale}_DRAFT_AI_TRANSLATION`] = response.translated_payload[field];
+      }
+    });
+
+    // Handle complex fields
+    complexFields.forEach(field => {
+      if (response.translated_payload[field]) {
+        draftTranslations[`${field}_${targetLocale}_DRAFT_AI_TRANSLATION`] = JSON.stringify(response.translated_payload[field]);
+      }
+    });
+
+    return draftTranslations;
+  } catch (error) {
+    console.error('Error generating draft translations:', error);
+    // Return empty object on error - draft translations are optional
+    return {};
+  }
+}
+
 // Process an export job
 async function processExportJob(job: TranslationJob, graphqlClient: GraphQLClient, restClient: BigCommerceRestClient) {
   console.log(`[Export] Starting export job ${job.id} for channel ${job.channelId} and locale ${job.locale}`);
   
   try {
+    // Check if draft translations are enabled
+    const metadata = job.metadata as TranslationJobMetadata;
+    const includeDraftTranslations = metadata?.includeDraftTranslations === true;
+    
+    if (includeDraftTranslations) {
+      console.log(`[Export] Draft AI translations enabled for job ${job.id}`);
+    }
+
     // Get channel details first
     console.log(`[Export] Fetching channel details for channel ${job.channelId}`);
     const channelResponse = await restClient.getChannel(job.channelId);
@@ -918,7 +1026,7 @@ async function processExportJob(job: TranslationJob, graphqlClient: GraphQLClien
         const customFields =
           productNode?.customFields?.edges;
 
-          return {
+          const productData = {
             productId: productId,
             // Basic Information
             [`name_${defaultLocale}`]: productNode?.basicInformation?.name || '',
@@ -956,6 +1064,19 @@ async function processExportJob(job: TranslationJob, graphqlClient: GraphQLClien
             [`customFields_${defaultLocale}`]: JSON.stringify(formatCustomFieldsData(productNode?.customFields)),
             [`customFields_${job.locale}`]: JSON.stringify(formatCustomFieldsData(customFields))
           };
+
+          // Generate draft translations if enabled
+          if (includeDraftTranslations) {
+            try {
+              const draftTranslations = await generateDraftTranslations(productData, defaultLocale, job.locale);
+              Object.assign(productData, draftTranslations);
+            } catch (error) {
+              console.error(`[Export] Error generating draft translations for product ${productId}:`, error);
+              // Continue without draft translations for this product
+            }
+          }
+
+          return productData;
         } catch (error) {
           console.error(`[Export] Error fetching translation for product ${productId}:`, error);
           // Log the error to the database, including the GraphQL response
@@ -999,7 +1120,7 @@ async function processExportJob(job: TranslationJob, graphqlClient: GraphQLClien
 
     console.log(`[Export] Creating CSV for ${translatedProducts.length} products`);
     // Create CSV content
-    const csvContent = stringifyCSV(translatedProducts, defaultLocale, job.locale);
+    const csvContent = stringifyCSV(translatedProducts, defaultLocale, job.locale, includeDraftTranslations);
 
     // Upload to blob storage with unique filename including channel name
     console.log('[Export] Uploading CSV to blob storage');
@@ -1025,6 +1146,55 @@ async function processExportJob(job: TranslationJob, graphqlClient: GraphQLClien
       rawData: JSON.stringify({ jobId: job.id, response: errorWithResponse.response }),
     });
     throw error;
+  }
+}
+
+// Helper function to generate draft translations for categories
+async function generateCategoryDraftTranslations(
+  categoryData: any,
+  defaultLocale: string,
+  targetLocale: string
+): Promise<Record<string, string>> {
+  try {
+    // Define translatable fields for categories
+    const translatableFields = ['name', 'description', 'pageTitle', 'metaDescription', 'searchKeywords'];
+    
+    const payload: Record<string, any> = {};
+    const translateKeys: string[] = [];
+
+    translatableFields.forEach(field => {
+      const defaultValue = categoryData[`${field}_${defaultLocale}`];
+      const currentValue = categoryData[`${field}_${targetLocale}`];
+      
+      if (defaultValue && typeof defaultValue === 'string' && defaultValue.trim() && 
+          (!currentValue || !currentValue.trim())) {
+        payload[field] = defaultValue;
+        translateKeys.push(field);
+      }
+    });
+
+    if (Object.keys(payload).length === 0) {
+      return {};
+    }
+
+    const response = await callTranslationsAPI({
+      target_language: targetLocale,
+      source_language: defaultLocale,
+      payload,
+      translate_keys: translateKeys,
+    });
+
+    const draftTranslations: Record<string, string> = {};
+    translatableFields.forEach(field => {
+      if (response.translated_payload[field]) {
+        draftTranslations[`${field}_${targetLocale}_DRAFT_AI_TRANSLATION`] = response.translated_payload[field];
+      }
+    });
+
+    return draftTranslations;
+  } catch (error) {
+    console.error('Error generating category draft translations:', error);
+    return {};
   }
 }
 
@@ -1121,6 +1291,14 @@ async function processCategoryExportJob(job: TranslationJob, graphqlClient: any,
   console.log(`[Category Export] Starting export job ${job.id} for channel ${job.channelId} and locale ${job.locale}`);
   
   try {
+    // Check if draft translations are enabled
+    const metadata = job.metadata as TranslationJobMetadata;
+    const includeDraftTranslations = metadata?.includeDraftTranslations === true;
+    
+    if (includeDraftTranslations) {
+      console.log(`[Category Export] Draft AI translations enabled for job ${job.id}`);
+    }
+
     // Get channel details first
     console.log(`[Category Export] Fetching channel details for channel ${job.channelId}`);
     const channelResponse = await restClient.getChannel(job.channelId);
@@ -1146,20 +1324,44 @@ async function processCategoryExportJob(job: TranslationJob, graphqlClient: any,
     }
 
     // Format translations for CSV
-    const categoryRecords = translations.edges.map((edge: any) => {
+    const categoryRecords = await Promise.all(translations.edges.map(async (edge: any) => {
       const node = edge.node;
-      return formatCategoryDataForCSV(
+      const categoryData = formatCategoryDataForCSV(
         node.resourceId,
         node.fields,
         defaultLocale,
         job.locale
       );
-    });
+
+      // Generate draft translations if enabled
+      if (includeDraftTranslations) {
+        try {
+          const draftTranslations = await generateCategoryDraftTranslations(categoryData, defaultLocale, job.locale);
+          Object.assign(categoryData, draftTranslations);
+        } catch (error) {
+          console.error(`[Category Export] Error generating draft translations for category ${node.resourceId}:`, error);
+          // Continue without draft translations for this category
+        }
+      }
+
+      return categoryData;
+    }));
 
     console.log(`[Category Export] Creating CSV for ${categoryRecords.length} categories`);
 
-    // Generate CSV content
-    const headers = generateCategoryCSVHeaders(defaultLocale, job.locale);
+    // Generate CSV headers with draft columns interleaved
+    const categoryFields = ['name', 'description', 'pageTitle', 'metaDescription', 'searchKeywords'];
+    let headers = ['categoryId'];
+    
+    // Build headers with draft columns right next to their originals
+    categoryFields.forEach(field => {
+      headers.push(`${field}_${defaultLocale}`);
+      headers.push(`${field}_${job.locale}`);
+      if (includeDraftTranslations) {
+        headers.push(`${field}_${job.locale}_DRAFT_AI_TRANSLATION`);
+      }
+    });
+
     const csvConfig: UnparseConfig = {
       quotes: true,
       quoteChar: '"',

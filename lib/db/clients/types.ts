@@ -3,6 +3,12 @@ import type { TranslationJob as PgTranslationJob } from '../drizzle-schema-pg';
 import type { TranslationJob as MySQLTranslationJob } from '../drizzle-schema-mysql';
 import type { TranslationJob as SQLiteTranslationJob } from '../drizzle-schema-sqlite';
 
+// Define metadata types for translation jobs
+export interface TranslationJobMetadata {
+  includeDraftTranslations?: boolean;
+  sourceLanguage?: string;
+}
+
 // Extend the inferred TranslationJob type to override createdAt
 interface ExtendedTranslationJob extends Omit<SQLiteTranslationJob, 'createdAt'> {
   createdAt: Date;
@@ -43,6 +49,7 @@ export interface DatabaseOperations {
     channelId: number;
     locale: string;
     fileUrl?: string;
+    metadata?: TranslationJobMetadata;
   }): Promise<TranslationJob>;
   updateTranslationJob(id: number, data: Partial<TranslationJob>): Promise<TranslationJob>;
   getPendingTranslationJobs(): Promise<TranslationJob[]>;
