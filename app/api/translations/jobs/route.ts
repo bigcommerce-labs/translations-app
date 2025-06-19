@@ -3,6 +3,7 @@ import { getSessionFromContext } from '@/lib/auth';
 import { dbClient as db } from '@/lib/db';
 import { put } from '@vercel/blob';
 import crypto from 'crypto';
+import type { TranslationJobMetadata } from '@/lib/db/clients/types';
 
 // Helper to generate a unique filename
 function generateUniqueFilename(originalName: string, storeHash: string): string {
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Handle export job creation
     const body = await request.json();
-    const { jobType, channelId, locale, resourceType = 'products' } = body;
+    const { jobType, channelId, locale, resourceType = 'products', includeDraftTranslations = false } = body;
 
     if (!jobType || !channelId || !locale) {
       return new Response('Missing required fields', { status: 400 });
@@ -95,6 +96,9 @@ export async function POST(request: NextRequest) {
       channelId,
       locale,
       fileUrl: undefined,
+      metadata: {
+        includeDraftTranslations: jobType === 'export' ? includeDraftTranslations : false,
+      },
     });
 
     return Response.json({ job });

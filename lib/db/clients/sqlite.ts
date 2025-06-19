@@ -137,15 +137,18 @@ export class SQLiteClient implements DatabaseOperations {
   async createTranslationJob(data: {
     storeHash: string;
     jobType: 'import' | 'export';
+    resourceType?: 'products' | 'categories';
     channelId: number;
     locale: string;
     fileUrl?: string;
+    metadata?: any;
   }): Promise<TranslationJob> {
     const now = Date.now();
     const result = await this.db
       .insert(this.schema.translationJobs)
       .values({
         ...data,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
         status: 'pending',
         createdAt: now,
         updatedAt: now,
@@ -166,7 +169,7 @@ export class SQLiteClient implements DatabaseOperations {
       ...data,
       createdAt: data.createdAt instanceof Date ? data.createdAt.getTime() : data.createdAt,
       updatedAt: data.updatedAt instanceof Date ? data.updatedAt.getTime() : Date.now(),
-      metadata: typeof data.metadata === 'string' ? data.metadata : null,
+      metadata: data.metadata ? JSON.stringify(data.metadata) : null,
     };
 
     await this.db

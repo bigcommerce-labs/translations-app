@@ -210,7 +210,11 @@
         "selectChannel": "Seleccionar Canal",
         "selectLocale": "Seleccionar Idioma",
         "cancel": "Cancelar",
-        "export": "Exportar"
+        "export": "Exportar",
+        "draftTranslations": {
+          "label": "Incluir traducciones borrador de IA",
+          "description": "Generar traducciones de IA para campos vacíos y añadirlas en columnas 'Traducción Borrador de IA' junto a cada campo original para facilitar la comparación. Debe copiar manualmente estas a las columnas regulares para aceptarlas antes de volver a importar."
+        }
       },
       "errors": {
         "fetchErrors": "Error al obtener errores",

@@ -210,7 +210,11 @@
         "selectChannel": "Sélectionner le Canal",
         "selectLocale": "Sélectionner la Langue",
         "cancel": "Annuler",
-        "export": "Exporter"
+        "export": "Exporter",
+        "draftTranslations": {
+          "label": "Inclure les brouillons de traductions IA",
+          "description": "Générer des traductions IA pour les champs vides et les ajouter dans des colonnes 'Brouillon de Traduction IA' à côté de chaque champ original pour faciliter la comparaison. Vous devez manuellement copier celles-ci dans les colonnes régulières pour les accepter avant de ré-importer."
+        }
       },
       "errors": {
         "fetchErrors": "Échec de la récupération des erreurs",

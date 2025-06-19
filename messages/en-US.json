@@ -180,6 +180,17 @@
       "modals": {
         "resourceType": "Select Resource Type"
       },
+      "exportModal": {
+        "title": "Export Translations",
+        "selectChannel": "Select Channel",
+        "selectLocale": "Select Locale",
+        "export": "Export",
+        "cancel": "Cancel",
+        "draftTranslations": {
+          "label": "Include draft AI translations",
+          "description": "Generate AI translations for empty fields and add them in 'Draft AI Translation' columns next to each original field for easy comparison. You must manually copy these to the regular columns to accept them before re-importing."
+        }
+      },
       "importModal": {
         "title": "Import Translations",
         "selectChannel": "Select Channel",
@@ -194,7 +205,7 @@
         },
         "preview": {
           "title": "Preview CSV Contents",
-          "description": "Review the first row of your CSV file to ensure the content is correct. Note: Only columns in the format of 'field_{locale}' (e.g. 'description_{locale}') will be imported.",
+          "description": "Review the first row of your CSV file to ensure the content is correct. Note: Only columns in the format of 'field_{locale}' (e.g. 'description_{locale}') will be imported. Draft AI translation columns (ending with '_DRAFT_AI_TRANSLATION') are automatically ignored during import.",
           "fileInfo": "File: {filename}",
           "learnMore": "Learn more",
           "learnMoreUrl": "https://start.bigcommerce.com/multi-lang-translations/#supported-import-csv-columns"
@@ -204,13 +215,6 @@
           "bestPracticesLink": "View best practices guide",
           "bestPracticesUrl": "https://start.bigcommerce.com/multi-lang-translations/#best-practices-for-imports"
         }
-      },
-      "exportModal": {
-        "title": "Export Translations",
-        "selectChannel": "Select Channel",
-        "selectLocale": "Select Locale",
-        "cancel": "Cancel",
-        "export": "Export"
       },
       "errors": {
         "fetchErrors": "Failed to fetch errors",
