@@ -15,6 +15,7 @@ import {
   Flex,
   HR,
   Form as StyledForm,
+  Button,
 } from "@bigcommerce/big-design";
 import { theme } from "@bigcommerce/big-design-theme";
 import { translatableProductFields } from "@/lib/constants";
@@ -29,6 +30,7 @@ import TranslatableField from "./translatable-field";
 import ProductOptions from "./product-options";
 import ProductModifiers from "./product-modifiers";
 import CustomFields from "./custom-fields";
+import { translateProduct } from "@/app/actions/translate-product";
 
 interface Channel {
   channel_id: number;
@@ -157,7 +159,9 @@ interface State {
   isProductInfoLoading: boolean;
   hasProductInfoLoadingError: boolean;
   isProductSaving: boolean;
+  isTranslating: boolean;
   errors: Record<string, string>;
+  forceRenderKey: number;
 }
 
 type Action =
@@ -173,7 +177,9 @@ type Action =
   | { type: "SET_PRODUCT_INFO_LOADING"; payload: boolean }
   | { type: "SET_PRODUCT_INFO_LOADING_ERROR"; payload: boolean }
   | { type: "SET_PRODUCT_SAVING"; payload: boolean }
-  | { type: "SET_ERRORS"; payload: Record<string, string> };
+  | { type: "SET_TRANSLATING"; payload: boolean }
+  | { type: "SET_ERRORS"; payload: Record<string, string> }
+  | { type: "FORCE_RENDER"; payload?: never };
 
 const initialState: State = {
   currentChannel: 1,
@@ -189,7 +195,9 @@ const initialState: State = {
   isProductInfoLoading: true,
   hasProductInfoLoadingError: false,
   isProductSaving: false,
+  isTranslating: false,
   errors: {},
+  forceRenderKey: 0,
 };
 
 function reducer(state: State, action: Action): State {
@@ -225,6 +233,10 @@ function reducer(state: State, action: Action): State {
       };
     case "SET_PRODUCT_SAVING":
       return { ...state, isProductSaving: action.payload };
+    case "SET_TRANSLATING":
+      return { ...state, isTranslating: action.payload };
+    case "FORCE_RENDER":
+      return { ...state, forceRenderKey: state.forceRenderKey + 1 };
     default:
       return state;
   }
@@ -266,7 +278,9 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
     isProductInfoLoading,
     hasProductInfoLoadingError,
     isProductSaving,
+    isTranslating,
     errors,
+    forceRenderKey,
   } = state;
 
   const defaultLocale = useMemo(() => {
@@ -280,7 +294,7 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
     );
   }, [channels, currentChannel, storeInformation.language]);
 
-  const hasInitialized = useRef(false);
+      const hasInitialized = useRef(false);
 
   const fetchProductData = useCallback(async (channelId: number, locale?: string) => {
     dispatch({ type: "SET_PRODUCT_INFO_LOADING", payload: true });
@@ -588,6 +602,60 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
     [form]
   );
 
+  const handleTranslate = useCallback(async () => {
+    if (currentLocale === defaultLocale) {
+      addAlert({
+        type: "warning",
+        header: t("common.warning"),
+        messages: [{ text: t("products.form.cannotTranslateDefaultLocale") }],
+      });
+      return;
+    }
+
+    try {
+      dispatch({ type: "SET_TRANSLATING", payload: true });
+
+      // Convert locale code to ISO 639-1 format for the API
+      const targetLanguage = currentLocale.split('-')[0];
+      const sourceLanguage = defaultLocale.split('-')[0];
+
+      const result = await translateProduct({
+        productData,
+        currentLocaleData: form,
+        targetLanguage,
+        sourceLanguage,
+      });
+
+      if (result.success && result.translatedData) {
+        // Force a deep clone to ensure React detects the state change
+        const translatedData = JSON.parse(JSON.stringify(result.translatedData));
+        
+        dispatch({ type: "SET_FORM", payload: translatedData });
+        dispatch({ type: "FORCE_RENDER" });
+        addAlert({
+          type: "success",
+          header: t("products.form.translationPrepared"),
+          autoDismiss: false,
+          messages: [{ text: t("products.form.reviewAndSave") }],
+        });
+      } else {
+        throw new Error(result.error || "Translation failed");
+      }
+    } catch (error) {
+      console.error("Translation error:", error);
+      addAlert({
+        type: "error",
+        header: t("common.error"),
+        messages: [{ 
+          text: error instanceof Error ? error.message : t("products.form.translateError")
+        }],
+      });
+    } finally {
+      dispatch({ type: "SET_TRANSLATING", payload: false });
+    }
+  }, [currentLocale, defaultLocale, productData, form, t]);
+
+
   if (isStoreInfoLoading) return <LoadingScreen />;
 
   if (!storeInformation.multi_language_enabled) {
@@ -601,7 +669,8 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
   return (
     <Loading isLoading={isProductInfoLoading}>
       <Box>
-        <Flex flexDirection="column" flexGap={theme.spacing.xLarge}>
+        {/* Mobile Layout */}
+        <Box display={{ mobile: "block", tablet: "none" }}>
           <ChannelLocaleSelector
             channels={channels}
             currentChannel={currentChannel}
@@ -609,6 +678,52 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
             onChannelChange={handleChannelChange}
             onLocaleChange={handleLocaleChange}
           />
+          
+          {currentLocale !== defaultLocale && (
+            <Box marginTop="medium">
+              <Button
+                variant="secondary"
+                onClick={handleTranslate}
+                disabled={isTranslating || isProductSaving}
+                isLoading={isTranslating}
+                style={{ width: "100%" }}
+              >
+                ✨ {t("products.form.translateWithAI")} ✨
+              </Button>
+            </Box>
+          )}
+        </Box>
+
+        {/* Desktop Layout */}
+        <Flex 
+          display={{ mobile: "none", tablet: "flex" }}
+          flexDirection="row"
+          alignItems="flex-end"
+          justifyContent="space-between"
+          flexGap={theme.spacing.xLarge}
+        >
+          <Box style={{ flex: 1 }}>
+            <ChannelLocaleSelector
+              channels={channels}
+              currentChannel={currentChannel}
+              currentLocale={currentLocale}
+              onChannelChange={handleChannelChange}
+              onLocaleChange={handleLocaleChange}
+            />
+          </Box>
+          
+          {currentLocale !== defaultLocale && (
+            <Box>
+              <Button
+                variant="secondary"
+                onClick={handleTranslate}
+                disabled={isTranslating || isProductSaving}
+                isLoading={isTranslating}
+              >
+                ✨ {t("products.form.translateWithAI")} ✨
+              </Button>
+            </Box>
+          )}
         </Flex>
 
         <HR color="secondary30" />
@@ -642,7 +757,7 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
           if (field.type === "optionsList" && productData?.options?.edges) {
             return (
               <ProductOptions
-                key={`options_${currentLocale}`}
+                key={`options_${currentLocale}_${forceRenderKey}`}
                 options={productData.options.edges}
                 formOptions={form.options || {}}
                 defaultLocale={defaultLocale}
@@ -655,7 +770,7 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
           if (field.type === "modifiersList" && productData?.modifiers?.edges) {
             return (
               <ProductModifiers
-                key={`modifiers_${currentLocale}`}
+                key={`modifiers_${currentLocale}_${forceRenderKey}`}
                 modifiers={productData.modifiers.edges}
                 formModifiers={form.modifiers || {}}
                 defaultLocale={defaultLocale}
@@ -671,7 +786,7 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
           ) {
             return (
               <CustomFields
-                key={`customFields_${currentLocale}`}
+                key={`customFields_${currentLocale}_${forceRenderKey}`}
                 customFields={productData.customFields.edges}
                 formCustomFields={form.customFields || {}}
                 defaultLocale={defaultLocale}
@@ -691,7 +806,7 @@ function ProductForm({ channels, productId, context }: ProductFormProps) {
                 text: t("common.actions.save"),
                 variant: "primary",
                 onClick: handleSubmit,
-                disabled: isProductSaving,
+                disabled: isProductSaving || isTranslating,
                 isLoading: isProductSaving,
               },
             ]}

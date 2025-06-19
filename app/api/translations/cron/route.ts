@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server';
 import { dbClient as db } from '@/lib/db';
 import { put } from '@vercel/blob';
-import { createGraphQLClient } from '@bigcommerce/translations-graphql-client';
-import type { GraphQLClient } from '@bigcommerce/translations-graphql-client';
-import { formatChannelId, formatProductId } from '@bigcommerce/translations-graphql-client/src/utils';
+import { createGraphQLClient } from '@/lib/graphql-client/src';
+import type { GraphQLClient } from '@/lib/graphql-client/src';
+import { formatChannelId, formatProductId } from '@/lib/graphql-client/src/utils';
 import type { TranslationJob } from '@/lib/db/clients/types';
-import { createRestClient, BigCommerceRestClient } from '@bigcommerce/translations-rest-client';
+import { createRestClient, BigCommerceRestClient } from '@/lib/rest-client/src';
 import { getSessionFromContext } from '@/lib/auth';
 import crypto from 'crypto';
 import Papa, { ParseResult, ParseError, UnparseConfig } from 'papaparse';

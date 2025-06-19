@@ -49,6 +49,12 @@
         "loadingError": "Error loading product information",
         "savingError": "Error saving product information",
         "saveSuccess": "Product information saved successfully",
+        "translateWithAI": "Translate with AI",
+        "translationPrepared": "Successfully translated with AI",
+        "reviewAndSave": "Review the translated content below for accuracy before saving",
+        "translateError": "Failed to translate product using AI",
+        "cannotTranslateDefaultLocale": "Cannot translate the default locale",
+        "localeLoadingError": "Error loading locale data",
         "unsavedChanges": "You have unsaved changes",
         "channelSelector": {
           "label": "Select Channel",
@@ -112,6 +118,7 @@
       "loading": "Loading...",
       "error": "An error occurred. Please try again.",
       "success": "Changes saved successfully",
+      "warning": "Warning",
       "required": "Required",
       "optional": "Optional",
       "actions": {
