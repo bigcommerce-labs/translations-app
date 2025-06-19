@@ -1,0 +1,71 @@
+openapi: 3.0.0
+info:
+  title: "Cloud Function Bulk Translation API"
+  description: "An API endpoint on Google Cloud Functions to translate string values within a JSON object. It can translate all strings or only those whose keys are specified in an optional list. The original object structure is preserved."
+  version: "3.0.0"
+servers:
+  - url: "https://translations-api-py-451041921684.us-central1.run.app"
+    description: "Production Server"
+paths:
+  /:
+    post:
+      summary: "Translate JSON Object with Key Targeting"
+      description: "Recursively finds and translates string values within a JSON object. If the 'translate_keys' array is provided, only strings with matching keys are translated. Otherwise, all strings are translated. Keys themselves are not translated."
+      operationId: "translateObject"
+      requestBody:
+        description: "The JSON object to translate, the target language, and an optional list of keys to translate."
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_language:
+                  type: string
+                  description: "The ISO 639-1 code of the language to translate the text into."
+                  example: "de"
+                source_language:
+                  type: string
+                  description: "(Optional) The ISO 639-1 code of the source text's language. If not provided, the API will attempt to detect the language."
+                  example: "en"
+                payload:
+                  type: object
+                  description: "The JSON object containing strings to be translated."
+                  example:
+                    id: 77
+                    name: "This name will not be translated."
+                    description: "<p>This description will be translated.</p>"
+                    options:
+                      - display_name: "This option name will be translated."
+                        option_values:
+                          - label": "This label will be translated."
+                translate_keys:
+                  type: array
+                  items:
+                    type: string
+                  description: "(Optional) A list of keys to target for translation. If omitted, all string values in the payload will be translated."
+                  example: ["description", "display_name", "label"]
+              required:
+                - target_language
+                - payload
+      responses:
+        '200':
+          description: "Successful translation."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  translated_payload:
+                    type: object
+                    description: "The payload with targeted string values translated."
+                  source_language:
+                    type: string
+                  target_language:
+                    type: string
+        '400':
+          description: "Bad Request. Missing required fields, invalid JSON, or 'translate_keys' is not a list."
+        '405':
+          description: "Method Not Allowed."
+        '500':
+          description: "Internal Server Error."
