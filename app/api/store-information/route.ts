@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { BigCommerceRestClient } from "@bigcommerce/translations-rest-client";
+import { BigCommerceRestClient } from "@/lib/rest-client/src";
 import { unstable_cache } from "next/cache";
 import { dbClient as db } from "@/lib/db";
 import { authorize } from "@/lib/auth";

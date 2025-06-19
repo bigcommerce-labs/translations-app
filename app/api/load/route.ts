@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { authClient } from "@/lib/auth";
-import { signedPayloadJwtSchema } from "@bigcommerce/translations-auth-client";
+import { signedPayloadJwtSchema } from "@/lib/auth-client/src";
 import { setSession } from "@/lib/session";
 import { dbClient } from "@/lib/db";
 

@@ -6,7 +6,7 @@ import {
   appSessionPayloadSchema,
   createAuthClient,
   signedPayloadJwtSchema,
-} from "@bigcommerce/translations-auth-client";
+} from "./auth-client/src";
 
 const { DB_TYPE, HARDCODED_ACCESS_TOKEN, HARDCODED_STORE_HASH } = process.env;
 

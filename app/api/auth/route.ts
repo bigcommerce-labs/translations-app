@@ -4,8 +4,8 @@ import { dbClient as db } from "@/lib/db";
 import {
   oauthResponseSchema,
   authCallbackQuerySchema,
-} from "@bigcommerce/translations-auth-client";
-import { GraphQLClient } from "@bigcommerce/translations-graphql-client";
+} from "@/lib/auth-client/src";
+import { GraphQLClient } from "@/lib/graphql-client/src";
 import { setSession } from "@/lib/session";
 import { appExtensions } from "@/lib/constants";
 

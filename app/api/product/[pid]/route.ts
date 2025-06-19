@@ -1,11 +1,11 @@
 import { type NextRequest } from "next/server";
 import { getSessionFromContext } from "@/lib/auth";
-import { BigCommerceRestClient } from "@bigcommerce/translations-rest-client";
+import { BigCommerceRestClient } from "@/lib/rest-client/src";
 import {
   fallbackLocale,
   translatableProductFields,
 } from "@/lib/constants";
-import { createGraphQLClient } from "@bigcommerce/translations-graphql-client";
+import { createGraphQLClient } from "@/lib/graphql-client/src";
 import {
   getBasicInformationFieldsToRemove,
   getSeoInformationFieldsToRemove,
